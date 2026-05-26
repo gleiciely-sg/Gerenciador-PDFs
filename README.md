@@ -6,4 +6,4 @@ Extrai a primeira página de cada PDF e junta tudo em um único arquivo.
 
 1. Vá na aba **Actions** do repositório
 2. Clique no build mais recente
-3. Lá embaixo em **Artifacts**, clique em **JuntarPDFs** para baixar o `.exe`
+3. Lá embaixo em **Artifacts**, clique em **JuntarPDFs** para baixar o `.exe`.
