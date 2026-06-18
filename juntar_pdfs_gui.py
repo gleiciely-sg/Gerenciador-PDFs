@@ -1,4 +1,3 @@
-dfs · PY
 """
 Extrai páginas específicas de cada PDF:
   - Salva arquivos individuais (mesmo nome) na pasta de saída
