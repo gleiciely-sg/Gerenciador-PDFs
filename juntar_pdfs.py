@@ -53,29 +53,25 @@ def parse_paginas(texto, total_paginas):
     return sorted(indices)
 
 
-def processar_pdfs(pasta_entrada, pasta_saida, spec_paginas, modo, nome_final, log, progress, btn_iniciar):
+def processar_pdfs(caminhos, pasta_saida, spec_paginas, modo, nome_final, log, progress, btn_iniciar):
     os.makedirs(pasta_saida, exist_ok=True)
     arquivo_final = os.path.join(pasta_saida, nome_final)
 
-    arquivos = [
-        f for f in os.listdir(pasta_entrada)
-        if f.lower().endswith(".pdf") and f != nome_final
-    ]
-
-    if not arquivos:
-        messagebox.showerror("Erro", f"Nenhum PDF encontrado em:\n{pasta_entrada}")
+    if not caminhos:
+        messagebox.showerror("Erro", "Nenhum PDF encontrado.")
         btn_iniciar.config(state="normal")
         return
 
-    arquivos = sorted(arquivos, key=ordenar_numerico)
-    total = len(arquivos)
+    # Ordena pelos nomes dos arquivos numericamente
+    caminhos = sorted(caminhos, key=lambda p: ordenar_numerico(os.path.basename(p)))
+    total = len(caminhos)
     log(f"📂 {total} arquivo(s) encontrado(s)\n")
 
     writer_final = PdfWriter()
     arquivos_ok = 0
 
-    for i, nome in enumerate(arquivos):
-        caminho = os.path.join(pasta_entrada, nome)
+    for i, caminho in enumerate(caminhos):
+        nome = os.path.basename(caminho)
         try:
             reader = PdfReader(caminho)
             total_pags = len(reader.pages)
@@ -145,18 +141,36 @@ def processar_pdfs(pasta_entrada, pasta_saida, spec_paginas, modo, nome_final, l
     btn_iniciar.config(state="normal")
 
 
+def selecionar_arquivos():
+    arquivos = filedialog.askopenfilenames(
+        title="Selecione os arquivos PDF",
+        filetypes=[("PDF", "*.pdf")]
+    )
+    if arquivos:
+        arquivos_selecionados.clear()
+        arquivos_selecionados.extend(arquivos)
+        nomes = ", ".join(os.path.basename(a) for a in arquivos)
+        entrada_var.set(nomes)
+        tipo_entrada_var.set("arquivos")
+
+
+def selecionar_pasta():
+    pasta = filedialog.askdirectory(title="Pasta com os PDFs")
+    if pasta:
+        arquivos_selecionados.clear()
+        entrada_var.set(pasta)
+        tipo_entrada_var.set("pasta")
+
+
 def iniciar_thread(entrada_var, saida_var, paginas_var, modo_var, nome_var, log, progress, btn_iniciar):
-    pasta_entrada = entrada_var.get().strip()
     pasta_saida = saida_var.get().strip()
     spec_paginas = paginas_var.get().strip()
     modo = modo_var.get()
     nome_final = nome_var.get().strip()
+    tipo = tipo_entrada_var.get()
 
-    if not pasta_entrada:
-        messagebox.showwarning("Atenção", "Selecione a pasta com os PDFs.")
-        return
-    if not os.path.isdir(pasta_entrada):
-        messagebox.showerror("Erro", "Pasta de entrada não encontrada.")
+    if not entrada_var.get().strip():
+        messagebox.showwarning("Atenção", "Selecione a pasta ou os arquivos de entrada.")
         return
     if not pasta_saida:
         messagebox.showwarning("Atenção", "Selecione a pasta de saída.")
@@ -164,7 +178,7 @@ def iniciar_thread(entrada_var, saida_var, paginas_var, modo_var, nome_var, log,
     if modo in (1, 3) and not nome_final:
         messagebox.showwarning("Atenção", "Defina o nome do arquivo final.")
         return
-    if not nome_final.lower().endswith(".pdf"):
+    if nome_final and not nome_final.lower().endswith(".pdf"):
         nome_final += ".pdf"
         nome_var.set(nome_final)
 
@@ -175,7 +189,23 @@ def iniciar_thread(entrada_var, saida_var, paginas_var, modo_var, nome_var, log,
                 "Formato inválido.\nExemplos válidos: 1 | 1,3 | 1-3 | 1-3,5,7-9"
             )
             return
-    # Se vazio: processar_pdfs usará todas as páginas de cada arquivo
+
+    # Monta lista de caminhos
+    if tipo == "arquivos":
+        caminhos = list(arquivos_selecionados)
+    else:
+        pasta = entrada_var.get().strip()
+        if not os.path.isdir(pasta):
+            messagebox.showerror("Erro", "Pasta de entrada não encontrada.")
+            return
+        caminhos = [
+            os.path.join(pasta, f) for f in os.listdir(pasta)
+            if f.lower().endswith(".pdf") and f != nome_final
+        ]
+
+    if not caminhos:
+        messagebox.showerror("Erro", "Nenhum PDF encontrado.")
+        return
 
     log_widget.config(state="normal")
     log_widget.delete("1.0", tk.END)
@@ -185,7 +215,7 @@ def iniciar_thread(entrada_var, saida_var, paginas_var, modo_var, nome_var, log,
 
     threading.Thread(
         target=processar_pdfs,
-        args=(pasta_entrada, pasta_saida, spec_paginas, modo, nome_final, log, progress, btn_iniciar),
+        args=(caminhos, pasta_saida, spec_paginas, modo, nome_final, log, progress, btn_iniciar),
         daemon=True
     ).start()
 
@@ -234,18 +264,26 @@ tk.Radiobutton(
     variable=modo_var, value=3, font=("Segoe UI", 9), command=atualizar_campos
 ).grid(row=2, column=0, sticky="w")
 
-# ── Pasta de entrada ──
-tk.Label(root, text="Pasta com os PDFs (entrada):", font=("Segoe UI", 9)).grid(
+# ── Entrada (pasta ou arquivos) ──
+tk.Label(root, text="Entrada (pasta ou arquivos PDF):", font=("Segoe UI", 9)).grid(
     row=2, column=0, columnspan=3, sticky="w"
 )
+arquivos_selecionados = []
+tipo_entrada_var = tk.StringVar(value="pasta")
 entrada_var = tk.StringVar()
-tk.Entry(root, textvariable=entrada_var, width=55, font=("Segoe UI", 9)).grid(
-    row=3, column=0, columnspan=2, sticky="ew", pady=(0, PADY)
+tk.Entry(root, textvariable=entrada_var, width=55, font=("Segoe UI", 9), state="readonly").grid(
+    row=3, column=0, columnspan=2, sticky="ew", pady=(0, 2)
 )
+frame_btns_entrada = tk.Frame(root)
+frame_btns_entrada.grid(row=3, column=2, padx=(6, 0), pady=(0, 2))
 tk.Button(
-    root, text="Selecionar", font=("Segoe UI", 9),
-    command=lambda: entrada_var.set(filedialog.askdirectory(title="Pasta com os PDFs"))
-).grid(row=3, column=2, padx=(6, 0), pady=(0, PADY))
+    frame_btns_entrada, text="📁 Pasta", font=("Segoe UI", 9), width=8,
+    command=selecionar_pasta
+).pack(side="top", pady=(0, 2))
+tk.Button(
+    frame_btns_entrada, text="📄 Arquivos", font=("Segoe UI", 9), width=8,
+    command=selecionar_arquivos
+).pack(side="top")
 
 # ── Pasta de saída ──
 tk.Label(root, text="Pasta de saída:", font=("Segoe UI", 9)).grid(
