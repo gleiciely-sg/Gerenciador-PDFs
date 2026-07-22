@@ -1,8 +1,8 @@
-name: Gerar JuntarPDFs.exe
+name: Build EXE
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -10,22 +10,27 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Baixar repositório
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
 
       - name: Instalar Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.6.0
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Instalar dependências
-        run: pip install pypdf pyinstaller
+        run: |
+          pip install pypdf pyinstaller
 
-      - name: Gerar .exe
-        run: pyinstaller --onefile --windowed --name "Gerenciador_PDFs" Gerenciador_PDFs.py
+      - name: Gerar EXE
+        run: |
+          pyinstaller --onefile --windowed --name "Gerenciador_PDFs" Gerenciador_PDFs.py
 
-      - name: Publicar .exe como artefato
-        uses: actions/upload-artifact@v4
+      - name: Publicar como Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: JuntarPDFs
-          path: dist/JuntarPDFs.exe
+          tag_name: v1.0.${{ github.run_number }}
+          name: "Gerenciador_PDFs v1.0.${{ github.run_number }}"
+          files: dist/Gerenciador_PDFs.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
