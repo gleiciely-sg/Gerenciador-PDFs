@@ -141,17 +141,33 @@ def processar_pdfs(caminhos, pasta_saida, spec_paginas, modo, nome_final, log, p
     btn_iniciar.config(state="normal")
 
 
-def selecionar_arquivos():
+def adicionar_arquivos():
     arquivos = filedialog.askopenfilenames(
         title="Selecione os arquivos PDF",
         filetypes=[("PDF", "*.pdf")]
     )
     if arquivos:
-        arquivos_selecionados.clear()
-        arquivos_selecionados.extend(arquivos)
-        nomes = ", ".join(os.path.basename(a) for a in arquivos)
-        entrada_var.set(nomes)
+        for a in arquivos:
+            if a not in arquivos_selecionados:
+                arquivos_selecionados.append(a)
         tipo_entrada_var.set("arquivos")
+        atualizar_label_arquivos()
+
+
+def limpar_arquivos():
+    arquivos_selecionados.clear()
+    entrada_var.set("")
+    tipo_entrada_var.set("pasta")
+
+
+def atualizar_label_arquivos():
+    total = len(arquivos_selecionados)
+    if total == 0:
+        entrada_var.set("")
+    elif total == 1:
+        entrada_var.set(os.path.basename(arquivos_selecionados[0]))
+    else:
+        entrada_var.set(f"{total} arquivo(s) selecionado(s)")
 
 
 def selecionar_pasta():
@@ -277,12 +293,16 @@ tk.Entry(root, textvariable=entrada_var, width=55, font=("Segoe UI", 9), state="
 frame_btns_entrada = tk.Frame(root)
 frame_btns_entrada.grid(row=3, column=2, padx=(6, 0), pady=(0, 2))
 tk.Button(
-    frame_btns_entrada, text="📁 Pasta", font=("Segoe UI", 9), width=8,
+    frame_btns_entrada, text="📁 Pasta", font=("Segoe UI", 9), width=10,
     command=selecionar_pasta
 ).pack(side="top", pady=(0, 2))
 tk.Button(
-    frame_btns_entrada, text="📄 Arquivos", font=("Segoe UI", 9), width=8,
-    command=selecionar_arquivos
+    frame_btns_entrada, text="📄 + Arquivos", font=("Segoe UI", 9), width=10,
+    command=adicionar_arquivos
+).pack(side="top", pady=(0, 2))
+tk.Button(
+    frame_btns_entrada, text="🗑 Limpar", font=("Segoe UI", 9), width=10, fg="red",
+    command=limpar_arquivos
 ).pack(side="top")
 
 # ── Pasta de saída ──
