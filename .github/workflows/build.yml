@@ -22,7 +22,7 @@ jobs:
         run: pip install pypdf pyinstaller
 
       - name: Gerar .exe
-        run: pyinstaller --onefile --windowed --name "JuntarPDFs" juntar_pdfs.py
+        run: pyinstaller --onefile --windowed --name "Gerenciador_PDFs" Gerenciador_PDFs.py
 
       - name: Publicar .exe como artefato
         uses: actions/upload-artifact@v4
