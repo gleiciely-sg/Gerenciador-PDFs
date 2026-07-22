@@ -479,38 +479,117 @@ def build_aba_reorganizar(nb):
 
     entrada_var = tk.StringVar()
     saida_var = tk.StringVar()
-    ordem_var = tk.StringVar()
 
     row_entrada_pdf(frame, 0, "Arquivo PDF:", entrada_var)
     row_saida_pdf(frame, 2, "Salvar resultado como:", saida_var, "reorganizado.pdf")
 
-    tk.Label(frame,
-             text="Nova ordem das páginas (ex.: 3,1,2 | 2-4,1 | inverter com 3,2,1):",
-             font=("Segoe UI", 9)).grid(row=4, column=0, columnspan=3, sticky="w")
-    tk.Entry(frame, textvariable=ordem_var, width=40, font=("Segoe UI", 9)).grid(
-        row=5, column=0, columnspan=2, sticky="w", pady=(0, 6))
+    tk.Label(frame, text="Ordem das páginas (selecione e mova):",
+             font=("Segoe UI", 9)).grid(row=4, column=0, columnspan=3, sticky="w", pady=(6,0))
 
-    log_w = make_log_widget(frame, 6)
-    prog = make_progress(frame, 8)
+    frame_lista = tk.Frame(frame)
+    frame_lista.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(0, 4))
+
+    scrollbar = tk.Scrollbar(frame_lista, orient="vertical")
+    listbox = tk.Listbox(frame_lista, height=10, width=45, font=("Segoe UI", 9),
+                         selectmode="extended", yscrollcommand=scrollbar.set,
+                         activestyle="dotbox")
+    scrollbar.config(command=listbox.yview)
+    listbox.pack(side="left", fill="both")
+    scrollbar.pack(side="left", fill="y")
+
+    frame_ctrl = tk.Frame(frame_lista)
+    frame_ctrl.pack(side="left", padx=(8, 0), anchor="n")
+
+    def mover_cima():
+        sels = list(listbox.curselection())
+        if not sels or sels[0] == 0:
+            return
+        for i in sels:
+            texto = listbox.get(i)
+            listbox.delete(i)
+            listbox.insert(i - 1, texto)
+            listbox.selection_set(i - 1)
+
+    def mover_baixo():
+        sels = list(listbox.curselection())
+        if not sels or sels[-1] == listbox.size() - 1:
+            return
+        for i in reversed(sels):
+            texto = listbox.get(i)
+            listbox.delete(i)
+            listbox.insert(i + 1, texto)
+            listbox.selection_set(i + 1)
+
+    def mover_para():
+        sels = list(listbox.curselection())
+        if not sels:
+            messagebox.showwarning("Atenção", "Selecione ao menos uma página."); return
+        try:
+            pos = int(pos_var.get().strip()) - 1
+            if pos < 0 or pos >= listbox.size():
+                raise ValueError()
+        except ValueError:
+            messagebox.showerror("Erro", f"Posição inválida. Digite entre 1 e {listbox.size()}."); return
+        itens = [listbox.get(i) for i in sels]
+        for i in reversed(sels):
+            listbox.delete(i)
+        for j, item in enumerate(itens):
+            listbox.insert(pos + j, item)
+        for j in range(len(itens)):
+            listbox.selection_set(pos + j)
+        listbox.see(pos)
+
+    def inverter():
+        itens = list(listbox.get(0, tk.END))
+        listbox.delete(0, tk.END)
+        for item in reversed(itens):
+            listbox.insert(tk.END, item)
+
+    def carregar_paginas():
+        e = entrada_var.get().strip()
+        if not e:
+            messagebox.showwarning("Atenção", "Selecione o PDF primeiro."); return
+        try:
+            reader = PdfReader(e)
+            tp = len(reader.pages)
+            listbox.delete(0, tk.END)
+            for i in range(tp):
+                listbox.insert(tk.END, f"Página {i+1:>4}")
+            log(f"📄 {tp} página(s) carregada(s). Reorganize e clique em Salvar.")
+        except Exception as ex:
+            messagebox.showerror("Erro", str(ex))
+
+    tk.Button(frame_ctrl, text="▲ Subir", font=("Segoe UI", 9), width=12,
+              command=mover_cima).pack(pady=(0, 4))
+    tk.Button(frame_ctrl, text="▼ Descer", font=("Segoe UI", 9), width=12,
+              command=mover_baixo).pack(pady=(0, 4))
+    tk.Button(frame_ctrl, text="↕ Inverter", font=("Segoe UI", 9), width=12,
+              command=inverter).pack(pady=(0, 10))
+    tk.Label(frame_ctrl, text="Mover para\nposição:", font=("Segoe UI", 8)).pack()
+    pos_var = tk.StringVar()
+    tk.Entry(frame_ctrl, textvariable=pos_var, width=6, font=("Segoe UI", 9),
+             justify="center").pack(pady=(2, 4))
+    tk.Button(frame_ctrl, text="→ Mover", font=("Segoe UI", 9), width=12,
+              command=mover_para).pack()
+
+    tk.Button(frame, text="📥  Carregar páginas do PDF", font=("Segoe UI", 9),
+              command=carregar_paginas).grid(row=6, column=0, sticky="w", pady=(0, 6))
+
+    log_w = make_log_widget(frame, 7, height=4)
+    prog = make_progress(frame, 9)
     log = lambda m: log_write(log_w, m)
 
     def processar(entrada, saida, ordem, btn):
         try:
             reader = PdfReader(entrada)
-            tp = len(reader.pages)
-            indices = parse_paginas(ordem, tp)
-            if indices is None:
-                messagebox.showerror("Erro", "Ordem inválida. Verifique os números de página.")
-                btn.config(state="normal"); return
             writer = PdfWriter()
-            for i, idx in enumerate(indices):
+            for i, idx in enumerate(ordem):
                 writer.add_page(reader.pages[idx])
-                prog["value"] = int((i+1)/len(indices)*95)
-                log(f"✔  Posição {i+1} ← página original {idx+1}")
+                prog["value"] = int((i+1)/len(ordem)*95)
             with open(saida, "wb") as f:
                 writer.write(f)
             prog["value"] = 100
-            log(f"\n✅ Concluído! {len(indices)} página(s) reorganizadas.")
+            log(f"\n✅ Concluído! {len(ordem)} página(s) reorganizadas.")
             log(f"📄 Salvo em: {saida}")
             messagebox.showinfo("Sucesso", f"PDF reorganizado:\n{saida}")
         except Exception as e:
@@ -521,14 +600,15 @@ def build_aba_reorganizar(nb):
     def iniciar(btn):
         e = entrada_var.get().strip()
         s = saida_var.get().strip()
-        o = ordem_var.get().strip()
         if not e: messagebox.showwarning("Atenção", "Selecione o PDF."); return
         if not s: messagebox.showwarning("Atenção", "Defina o arquivo de saída."); return
-        if not o: messagebox.showwarning("Atenção", "Informe a nova ordem das páginas."); return
+        if listbox.size() == 0:
+            messagebox.showwarning("Atenção", "Carregue as páginas primeiro."); return
+        ordem = [int(listbox.get(i).strip().split()[-1]) - 1 for i in range(listbox.size())]
         log_clear(log_w); prog["value"] = 0; btn.config(state="disabled")
-        threading.Thread(target=processar, args=(e, s, o, btn), daemon=True).start()
+        threading.Thread(target=processar, args=(e, s, ordem, btn), daemon=True).start()
 
-    b = btn_iniciar(frame, 9, "▶  Reorganizar", lambda: iniciar(b))
+    b = btn_iniciar(frame, 10, "▶  Salvar PDF Reorganizado", lambda: iniciar(b))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -766,6 +846,152 @@ def build_aba_info(nb):
     btn_iniciar(frame, 3, "🔍  Analisar PDF", analisar)
 
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ABA 8 — Renomear Arquivos
+# ══════════════════════════════════════════════════════════════════════════════
+
+def build_aba_renomear(nb):
+    frame = ttk.Frame(nb, padding=12)
+    nb.add(frame, text="  Renomear  ")
+
+    pasta_var = tk.StringVar()
+    linhas = []  # lista de (StringVar_nome_original, StringVar_nome_novo)
+
+    # ── Seleção de pasta ──
+    tk.Label(frame, text="Pasta com os arquivos:", font=("Segoe UI", 9)).grid(
+        row=0, column=0, columnspan=3, sticky="w")
+    tk.Entry(frame, textvariable=pasta_var, width=52, font=("Segoe UI", 9),
+             state="readonly").grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 4))
+    tk.Button(frame, text="Selecionar", font=("Segoe UI", 9),
+              command=lambda: [pasta_var.set(filedialog.askdirectory(title="Selecione a pasta")),
+                               carregar() if pasta_var.get() else None]
+              ).grid(row=1, column=2, padx=(6,0), pady=(0,4))
+
+    # ── Tabela ──
+    tk.Label(frame, text="Nome atual → Nome novo  (cole do Excel na coluna 'Nome novo'):",
+             font=("Segoe UI", 9)).grid(row=2, column=0, columnspan=3, sticky="w")
+
+    frame_tabela = tk.Frame(frame, relief="sunken", bd=1)
+    frame_tabela.grid(row=3, column=0, columnspan=3, sticky="nsew", pady=(0, 4))
+
+    # cabeçalho fixo
+    header_frame = tk.Frame(frame_tabela, bg="#0078D4")
+    header_frame.pack(fill="x")
+    tk.Label(header_frame, text="Nome atual", font=("Segoe UI", 9, "bold"),
+             bg="#0078D4", fg="white", width=38, anchor="w", padx=4).pack(side="left")
+    tk.Label(header_frame, text="Nome novo", font=("Segoe UI", 9, "bold"),
+             bg="#0078D4", fg="white", width=38, anchor="w", padx=4).pack(side="left")
+
+    # área rolável
+    canvas = tk.Canvas(frame_tabela, height=200, highlightthickness=0)
+    vsb = tk.Scrollbar(frame_tabela, orient="vertical", command=canvas.yview)
+    canvas.configure(yscrollcommand=vsb.set)
+    vsb.pack(side="right", fill="y")
+    canvas.pack(side="left", fill="both", expand=True)
+
+    inner = tk.Frame(canvas)
+    canvas_window = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+    def on_configure(e):
+        canvas.configure(scrollregion=canvas.bbox("all"))
+    inner.bind("<Configure>", on_configure)
+
+    def on_canvas_resize(e):
+        canvas.itemconfig(canvas_window, width=e.width)
+    canvas.bind("<Configure>", on_canvas_resize)
+
+    def carregar():
+        pasta = pasta_var.get().strip()
+        if not pasta or not os.path.isdir(pasta):
+            return
+        # Limpa tabela
+        for widget in inner.winfo_children():
+            widget.destroy()
+        linhas.clear()
+        arquivos = sorted(os.listdir(pasta))
+        for i, nome in enumerate(arquivos):
+            bg = "#ffffff" if i % 2 == 0 else "#f4f4f4"
+            row_f = tk.Frame(inner, bg=bg)
+            row_f.pack(fill="x")
+            var_orig = tk.StringVar(value=nome)
+            var_novo = tk.StringVar(value=os.path.splitext(nome)[0])
+            ext = os.path.splitext(nome)[1]
+            tk.Label(row_f, textvariable=var_orig, font=("Segoe UI", 9),
+                     bg=bg, width=36, anchor="w", padx=4).pack(side="left")
+            entry = tk.Entry(row_f, textvariable=var_novo, font=("Segoe UI", 9), width=36)
+            entry.pack(side="left", padx=(2, 0))
+            linhas.append((var_orig, var_novo, ext))
+        log(f"📂 {len(linhas)} arquivo(s) carregado(s). Edite os nomes e clique em Renomear.")
+
+    # Botão colar do Excel
+    def colar_excel():
+        """Pega texto da área de transferência (uma coluna colada do Excel) e preenche os nomes novos."""
+        try:
+            texto = frame.clipboard_get()
+        except tk.TclError:
+            messagebox.showwarning("Atenção", "Área de transferência vazia."); return
+        nomes = [l.strip() for l in texto.splitlines() if l.strip()]
+        if not nomes:
+            messagebox.showwarning("Atenção", "Nenhum valor encontrado na área de transferência."); return
+        for i, nome in enumerate(nomes):
+            if i >= len(linhas):
+                break
+            linhas[i][1].set(nome)
+        log(f"📋 {min(len(nomes), len(linhas))} nome(s) colados do Excel.")
+
+    frame_btns = tk.Frame(frame)
+    frame_btns.grid(row=4, column=0, columnspan=3, sticky="w", pady=(0, 4))
+    tk.Button(frame_btns, text="🔄  Recarregar pasta", font=("Segoe UI", 9),
+              command=carregar).pack(side="left", padx=(0, 8))
+    tk.Button(frame_btns, text="📋  Colar do Excel", font=("Segoe UI", 9),
+              command=colar_excel).pack(side="left")
+
+    log_w = make_log_widget(frame, 5, height=4)
+    log = lambda m: log_write(log_w, m)
+
+    def executar_rename(btn):
+        pasta = pasta_var.get().strip()
+        if not pasta:
+            messagebox.showwarning("Atenção", "Selecione uma pasta."); return
+        if not linhas:
+            messagebox.showwarning("Atenção", "Carregue os arquivos primeiro."); return
+        erros = 0
+        ok = 0
+        log_clear(log_w)
+        for var_orig, var_novo, ext in linhas:
+            orig = var_orig.get().strip()
+            novo = var_novo.get().strip()
+            if not novo:
+                log(f"⚠️  Nome novo vazio, ignorado: {orig}"); continue
+            nome_novo_completo = novo if novo.lower().endswith(ext.lower()) else novo + ext
+            src = os.path.join(pasta, orig)
+            dst = os.path.join(pasta, nome_novo_completo)
+            if orig == nome_novo_completo:
+                continue
+            try:
+                if not os.path.exists(src):
+                    log(f"⚠️  Não encontrado: {orig}"); continue
+                if os.path.exists(dst):
+                    log(f"⚠️  Já existe: {nome_novo_completo}, ignorado."); continue
+                os.rename(src, dst)
+                log(f"✔  {orig}  →  {nome_novo_completo}")
+                var_orig.set(nome_novo_completo)
+                ok += 1
+            except Exception as e:
+                log(f"❌ Erro em {orig}: {e}")
+                erros += 1
+        log(f"\n✅ Concluído! {ok} renomeado(s), {erros} erro(s).")
+        if ok > 0:
+            messagebox.showinfo("Sucesso", f"{ok} arquivo(s) renomeado(s) com sucesso!")
+        btn.config(state="normal")
+
+    def iniciar(btn):
+        btn.config(state="disabled")
+        executar_rename(btn)
+
+    b = btn_iniciar(frame, 6, "▶  Renomear Arquivos", lambda: iniciar(b))
+
 # ══════════════════════════════════════════════════════════════════════════════
 # JANELA PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════════
@@ -796,5 +1022,6 @@ build_aba_reorganizar(nb)
 build_aba_girar(nb)
 build_aba_senha(nb)
 build_aba_info(nb)
+build_aba_renomear(nb)
 
 root.mainloop()
