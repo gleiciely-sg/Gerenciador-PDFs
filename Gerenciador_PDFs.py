@@ -5,6 +5,7 @@ Funcionalidades:
   - Excluir páginas
   - Dividir PDF
   - Reorganizar páginas
+  - Renomear arquivos
   - Girar páginas
   - Proteger/Desproteger com senha
   - Informações do PDF
@@ -139,8 +140,14 @@ def btn_iniciar(parent, row, text, cmd):
     b = tk.Button(parent, text=text, font=("Segoe UI", 10, "bold"),
                   bg="#0078D4", fg="white", relief="flat", padx=16, pady=6,
                   command=cmd)
-    b.grid(row=row, column=0, columnspan=3, pady=(4, 0))
+    b.grid(row=row, column=0, columnspan=3, pady=(4, 8))
     return b
+
+
+def btn_limpar(parent, row, cmd):
+    tk.Button(parent, text="🗑  Limpar", font=("Segoe UI", 9),
+              fg="#cc0000", relief="flat",
+              command=cmd).grid(row=row, column=2, sticky="e", pady=(4, 0))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -151,7 +158,6 @@ def build_aba_extrair(nb):
     frame = ttk.Frame(nb, padding=12)
     nb.add(frame, text="  Extrair / Juntar  ")
 
-    # Modo
     frame_modo = tk.LabelFrame(frame, text="  Modo  ", font=("Segoe UI", 9), padx=8, pady=6)
     frame_modo.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, 6))
     modo_var = tk.IntVar(value=1)
@@ -172,13 +178,13 @@ def build_aba_extrair(nb):
                    variable=modo_var, value=3, font=("Segoe UI", 9),
                    command=atualizar_nome).grid(row=2, column=0, sticky="w")
 
-    # Entrada
     arqs_sel = []
     tipo_var = tk.StringVar(value="pasta")
     entrada_var = tk.StringVar()
+    saida_var = tk.StringVar()
 
     def adicionar_arquivos():
-        arqs = filedialog.askopenfilenames(title="Selecionar PDFs", filetypes=[("PDF","*.pdf")])
+        arqs = filedialog.askopenfilenames(title="Selecionar PDFs", filetypes=[("PDF", "*.pdf")])
         for a in arqs:
             if a not in arqs_sel:
                 arqs_sel.append(a)
@@ -194,42 +200,49 @@ def build_aba_extrair(nb):
             tipo_var.set("pasta")
             entrada_var.set(p)
 
-    def limpar():
+    def limpar_entrada():
         arqs_sel.clear()
         tipo_var.set("pasta")
         entrada_var.set("")
+
+    def limpar_tudo():
+        limpar_entrada()
+        saida_var.set("")
+        nome_var.set("Arquivo_Final.pdf")
+        paginas_var.set("")
+        modo_var.set(1)
+        atualizar_nome()
+        log_clear(log_w)
+        prog["value"] = 0
 
     tk.Label(frame, text="Entrada (pasta ou arquivos):", font=("Segoe UI", 9)).grid(
         row=1, column=0, columnspan=3, sticky="w")
     tk.Entry(frame, textvariable=entrada_var, width=52, font=("Segoe UI", 9),
              state="readonly").grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 2))
     fb = tk.Frame(frame)
-    fb.grid(row=2, column=2, padx=(6,0), pady=(0,2))
+    fb.grid(row=2, column=2, padx=(6, 0), pady=(0, 2))
     tk.Button(fb, text="📁 Pasta", font=("Segoe UI", 9), width=10,
-              command=sel_pasta).pack(side="top", pady=(0,2))
+              command=sel_pasta).pack(side="top", pady=(0, 2))
     tk.Button(fb, text="📄 + Arquivos", font=("Segoe UI", 9), width=10,
-              command=adicionar_arquivos).pack(side="top", pady=(0,2))
+              command=adicionar_arquivos).pack(side="top", pady=(0, 2))
     tk.Button(fb, text="🗑 Limpar", font=("Segoe UI", 9), width=10, fg="red",
-              command=limpar).pack(side="top")
+              command=limpar_entrada).pack(side="top")
 
-    # Saída
-    row_pasta(frame, 3, "Pasta de saída:", saida_var := tk.StringVar())
+    row_pasta(frame, 3, "Pasta de saída:", saida_var)
 
-    # Nome arquivo final
     lnome = tk.Label(frame, text="Nome do arquivo final:", font=("Segoe UI", 9))
     lnome.grid(row=5, column=0, columnspan=3, sticky="w")
     nome_var = tk.StringVar(value="Arquivo_Final.pdf")
     enome = tk.Entry(frame, textvariable=nome_var, width=52, font=("Segoe UI", 9))
     enome.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(0, 4))
 
-    # Páginas
     fp = tk.LabelFrame(frame, text="  Páginas a extrair  ", font=("Segoe UI", 9), padx=8, pady=6)
     fp.grid(row=7, column=0, columnspan=3, sticky="ew", pady=(4, 6))
     tk.Label(fp, text="Ex.: 1 | 1,3 | 2-4 | 1-3,5,7-9  —  vazio = todas as páginas",
              font=("Segoe UI", 9)).grid(row=0, column=0, sticky="w")
     paginas_var = tk.StringVar(value="")
     tk.Entry(fp, textvariable=paginas_var, width=30, font=("Segoe UI", 9)).grid(
-        row=1, column=0, sticky="w", pady=(4,0))
+        row=1, column=0, sticky="w", pady=(4, 0))
 
     log_w = make_log_widget(frame, 8)
     prog = make_progress(frame, 10)
@@ -249,8 +262,7 @@ def build_aba_extrair(nb):
                 reader = PdfReader(caminho)
                 tp = len(reader.pages)
                 if tp == 0:
-                    log(f"⚠️  Vazio: {nome}")
-                    continue
+                    log(f"⚠️  Vazio: {nome}"); continue
                 indices = parse_paginas(spec, tp) if spec.strip() else list(range(tp))
                 if indices is None:
                     log(f"⚠️  Páginas fora do intervalo em '{nome}' — usando todas")
@@ -279,13 +291,10 @@ def build_aba_extrair(nb):
         prog["value"] = 100
         log(f"\n✅ Concluído! {ok} arquivo(s) processado(s).")
         if modo == 1:
-            log(f"   • Individuais: {pasta_saida}\n   • Unido: {arquivo_final}")
             messagebox.showinfo("Sucesso", f"{ok} individual(is) + arquivo unido:\n{arquivo_final}")
         elif modo == 2:
-            log(f"   • Individuais: {pasta_saida}")
             messagebox.showinfo("Sucesso", f"{ok} arquivo(s) salvo(s) em:\n{pasta_saida}")
         else:
-            log(f"   • Unido: {arquivo_final}")
             messagebox.showinfo("Sucesso", f"Arquivo unido:\n{arquivo_final}")
         btn.config(state="normal")
 
@@ -295,11 +304,9 @@ def build_aba_extrair(nb):
         spec = paginas_var.get().strip()
         modo = modo_var.get()
         nome = nome_var.get().strip()
-        if not entrada:
-            messagebox.showwarning("Atenção", "Selecione a entrada."); return
-        if not saida:
-            messagebox.showwarning("Atenção", "Selecione a pasta de saída."); return
-        if modo in (1,3) and not nome:
+        if not entrada: messagebox.showwarning("Atenção", "Selecione a entrada."); return
+        if not saida: messagebox.showwarning("Atenção", "Selecione a pasta de saída."); return
+        if modo in (1, 3) and not nome:
             messagebox.showwarning("Atenção", "Defina o nome do arquivo final."); return
         if nome and not nome.lower().endswith(".pdf"):
             nome += ".pdf"; nome_var.set(nome)
@@ -319,7 +326,8 @@ def build_aba_extrair(nb):
                          args=(caminhos, saida, spec, modo, nome, btn),
                          daemon=True).start()
 
-    b = btn_iniciar(frame, 11, "▶  Iniciar", lambda: iniciar(b))
+    btn_limpar(frame, 11, limpar_tudo)
+    b = btn_iniciar(frame, 12, "▶  Iniciar", lambda: iniciar(b))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -345,6 +353,10 @@ def build_aba_excluir(nb):
     prog = make_progress(frame, 8)
     log = lambda m: log_write(log_w, m)
 
+    def limpar_tudo():
+        entrada_var.set(""); saida_var.set(""); paginas_var.set("")
+        log_clear(log_w); prog["value"] = 0
+
     def processar(entrada, saida, spec, btn):
         try:
             reader = PdfReader(entrada)
@@ -364,25 +376,23 @@ def build_aba_excluir(nb):
             with open(saida, "wb") as f:
                 writer.write(f)
             prog["value"] = 100
-            log(f"✅ Concluído! {len(excluir)} página(s) excluída(s), {len(manter)} mantida(s).")
+            log(f"✅ {len(excluir)} página(s) excluída(s), {len(manter)} mantida(s).")
             log(f"📄 Salvo em: {saida}")
             messagebox.showinfo("Sucesso", f"PDF salvo com {len(manter)} página(s):\n{saida}")
         except Exception as e:
-            log(f"❌ Erro: {e}")
-            messagebox.showerror("Erro", str(e))
+            log(f"❌ Erro: {e}"); messagebox.showerror("Erro", str(e))
         btn.config(state="normal")
 
     def iniciar(btn):
-        e = entrada_var.get().strip()
-        s = saida_var.get().strip()
-        p = paginas_var.get().strip()
-        if not e: messagebox.showwarning("Atenção", "Selecione o PDF de entrada."); return
+        e = entrada_var.get().strip(); s = saida_var.get().strip(); p = paginas_var.get().strip()
+        if not e: messagebox.showwarning("Atenção", "Selecione o PDF."); return
         if not s: messagebox.showwarning("Atenção", "Defina o arquivo de saída."); return
         if not p: messagebox.showwarning("Atenção", "Informe as páginas a excluir."); return
         log_clear(log_w); prog["value"] = 0; btn.config(state="disabled")
         threading.Thread(target=processar, args=(e, s, p, btn), daemon=True).start()
 
-    b = btn_iniciar(frame, 9, "▶  Excluir Páginas", lambda: iniciar(b))
+    btn_limpar(frame, 9, limpar_tudo)
+    b = btn_iniciar(frame, 10, "▶  Excluir Páginas", lambda: iniciar(b))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -396,6 +406,7 @@ def build_aba_dividir(nb):
     entrada_var = tk.StringVar()
     saida_var = tk.StringVar()
     modo_var = tk.IntVar(value=1)
+    intervalos_var = tk.StringVar()
 
     row_entrada_pdf(frame, 0, "Arquivo PDF:", entrada_var)
     row_pasta(frame, 2, "Pasta de saída:", saida_var)
@@ -406,13 +417,16 @@ def build_aba_dividir(nb):
                    font=("Segoe UI", 9)).grid(row=0, column=0, sticky="w")
     tk.Radiobutton(fm, text="Intervalos personalizados (ex.: 1-3,4-6,7)",
                    variable=modo_var, value=2, font=("Segoe UI", 9)).grid(row=1, column=0, sticky="w")
-    intervalos_var = tk.StringVar()
     tk.Entry(fm, textvariable=intervalos_var, width=35, font=("Segoe UI", 9)).grid(
         row=2, column=0, sticky="w", pady=(4, 0))
 
     log_w = make_log_widget(frame, 5)
     prog = make_progress(frame, 7)
     log = lambda m: log_write(log_w, m)
+
+    def limpar_tudo():
+        entrada_var.set(""); saida_var.set(""); intervalos_var.set(""); modo_var.set(1)
+        log_clear(log_w); prog["value"] = 0
 
     def processar(entrada, saida, modo, intervalos, btn):
         try:
@@ -449,24 +463,22 @@ def build_aba_dividir(nb):
                     prog["value"] = int((g+1)/len(grupos)*95)
             prog["value"] = 100
             log(f"\n✅ Concluído! Arquivos salvos em: {saida}")
-            messagebox.showinfo("Sucesso", f"PDF dividido com sucesso!\n{saida}")
+            messagebox.showinfo("Sucesso", f"PDF dividido!\n{saida}")
         except Exception as e:
-            log(f"❌ Erro: {e}")
-            messagebox.showerror("Erro", str(e))
+            log(f"❌ Erro: {e}"); messagebox.showerror("Erro", str(e))
         btn.config(state="normal")
 
     def iniciar(btn):
-        e = entrada_var.get().strip()
-        s = saida_var.get().strip()
-        m = modo_var.get()
-        iv = intervalos_var.get().strip()
+        e = entrada_var.get().strip(); s = saida_var.get().strip()
+        m = modo_var.get(); iv = intervalos_var.get().strip()
         if not e: messagebox.showwarning("Atenção", "Selecione o PDF."); return
         if not s: messagebox.showwarning("Atenção", "Selecione a pasta de saída."); return
         if m == 2 and not iv: messagebox.showwarning("Atenção", "Informe os intervalos."); return
         log_clear(log_w); prog["value"] = 0; btn.config(state="disabled")
         threading.Thread(target=processar, args=(e, s, m, iv, btn), daemon=True).start()
 
-    b = btn_iniciar(frame, 8, "▶  Dividir", lambda: iniciar(b))
+    btn_limpar(frame, 8, limpar_tudo)
+    b = btn_iniciar(frame, 9, "▶  Dividir", lambda: iniciar(b))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -484,7 +496,7 @@ def build_aba_reorganizar(nb):
     row_saida_pdf(frame, 2, "Salvar resultado como:", saida_var, "reorganizado.pdf")
 
     tk.Label(frame, text="Ordem das páginas (selecione e mova):",
-             font=("Segoe UI", 9)).grid(row=4, column=0, columnspan=3, sticky="w", pady=(6,0))
+             font=("Segoe UI", 9)).grid(row=4, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
     frame_lista = tk.Frame(frame)
     frame_lista.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(0, 4))
@@ -502,8 +514,7 @@ def build_aba_reorganizar(nb):
 
     def mover_cima():
         sels = list(listbox.curselection())
-        if not sels or sels[0] == 0:
-            return
+        if not sels or sels[0] == 0: return
         for i in sels:
             texto = listbox.get(i)
             listbox.delete(i)
@@ -512,8 +523,7 @@ def build_aba_reorganizar(nb):
 
     def mover_baixo():
         sels = list(listbox.curselection())
-        if not sels or sels[-1] == listbox.size() - 1:
-            return
+        if not sels or sels[-1] == listbox.size() - 1: return
         for i in reversed(sels):
             texto = listbox.get(i)
             listbox.delete(i)
@@ -526,8 +536,7 @@ def build_aba_reorganizar(nb):
             messagebox.showwarning("Atenção", "Selecione ao menos uma página."); return
         try:
             pos = int(pos_var.get().strip()) - 1
-            if pos < 0 or pos >= listbox.size():
-                raise ValueError()
+            if pos < 0 or pos >= listbox.size(): raise ValueError()
         except ValueError:
             messagebox.showerror("Erro", f"Posição inválida. Digite entre 1 e {listbox.size()}."); return
         itens = [listbox.get(i) for i in sels]
@@ -573,11 +582,15 @@ def build_aba_reorganizar(nb):
               command=mover_para).pack()
 
     tk.Button(frame, text="📥  Carregar páginas do PDF", font=("Segoe UI", 9),
-              command=carregar_paginas).grid(row=6, column=0, sticky="w", pady=(0, 6))
+              command=carregar_paginas).grid(row=6, column=0, sticky="w", pady=(0, 4))
 
     log_w = make_log_widget(frame, 7, height=4)
     prog = make_progress(frame, 9)
     log = lambda m: log_write(log_w, m)
+
+    def limpar_tudo():
+        entrada_var.set(""); saida_var.set(""); listbox.delete(0, tk.END)
+        log_clear(log_w); prog["value"] = 0
 
     def processar(entrada, saida, ordem, btn):
         try:
@@ -589,17 +602,15 @@ def build_aba_reorganizar(nb):
             with open(saida, "wb") as f:
                 writer.write(f)
             prog["value"] = 100
-            log(f"\n✅ Concluído! {len(ordem)} página(s) reorganizadas.")
+            log(f"\n✅ {len(ordem)} página(s) reorganizadas.")
             log(f"📄 Salvo em: {saida}")
             messagebox.showinfo("Sucesso", f"PDF reorganizado:\n{saida}")
         except Exception as e:
-            log(f"❌ Erro: {e}")
-            messagebox.showerror("Erro", str(e))
+            log(f"❌ Erro: {e}"); messagebox.showerror("Erro", str(e))
         btn.config(state="normal")
 
     def iniciar(btn):
-        e = entrada_var.get().strip()
-        s = saida_var.get().strip()
+        e = entrada_var.get().strip(); s = saida_var.get().strip()
         if not e: messagebox.showwarning("Atenção", "Selecione o PDF."); return
         if not s: messagebox.showwarning("Atenção", "Defina o arquivo de saída."); return
         if listbox.size() == 0:
@@ -608,11 +619,198 @@ def build_aba_reorganizar(nb):
         log_clear(log_w); prog["value"] = 0; btn.config(state="disabled")
         threading.Thread(target=processar, args=(e, s, ordem, btn), daemon=True).start()
 
-    b = btn_iniciar(frame, 10, "▶  Salvar PDF Reorganizado", lambda: iniciar(b))
+    btn_limpar(frame, 10, limpar_tudo)
+    b = btn_iniciar(frame, 11, "▶  Salvar PDF Reorganizado", lambda: iniciar(b))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ABA 5 — Girar Páginas
+# ABA 5 — Renomear Arquivos
+# ══════════════════════════════════════════════════════════════════════════════
+
+def build_aba_renomear(nb):
+    frame = ttk.Frame(nb, padding=12)
+    nb.add(frame, text="  Renomear  ")
+
+    pasta_var = tk.StringVar()
+    linhas = []  # lista de (var_orig, var_novo, ext)
+
+    # ── Seleção de pasta ou arquivos ──
+    tk.Label(frame, text="Pasta ou arquivos de entrada:", font=("Segoe UI", 9)).grid(
+        row=0, column=0, columnspan=3, sticky="w")
+    tk.Entry(frame, textvariable=pasta_var, width=52, font=("Segoe UI", 9),
+             state="readonly").grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 4))
+
+    fb = tk.Frame(frame)
+    fb.grid(row=1, column=2, padx=(6, 0), pady=(0, 4))
+
+    def sel_pasta():
+        p = filedialog.askdirectory(title="Selecione a pasta")
+        if p:
+            pasta_var.set(p)
+            carregar_de_pasta(p)
+
+    def sel_arquivos():
+        arqs = filedialog.askopenfilenames(title="Selecione os arquivos")
+        if arqs:
+            pasta_var.set(f"{len(arqs)} arquivo(s) selecionado(s)")
+            carregar_lista(list(arqs))
+
+    tk.Button(fb, text="📁 Pasta", font=("Segoe UI", 9), width=10,
+              command=sel_pasta).pack(side="top", pady=(0, 2))
+    tk.Button(fb, text="📄 Arquivos", font=("Segoe UI", 9), width=10,
+              command=sel_arquivos).pack(side="top")
+
+    # ── Tabela ──
+    tk.Label(frame,
+             text="Nome atual  (copie p/ Excel)  →  Nome novo  (cole do Excel ou digite):",
+             font=("Segoe UI", 9)).grid(row=2, column=0, columnspan=3, sticky="w")
+
+    frame_tabela = tk.Frame(frame, relief="sunken", bd=1)
+    frame_tabela.grid(row=3, column=0, columnspan=3, sticky="nsew", pady=(0, 4))
+
+    header_frame = tk.Frame(frame_tabela, bg="#0078D4")
+    header_frame.pack(fill="x")
+    tk.Label(header_frame, text="Nome atual", font=("Segoe UI", 9, "bold"),
+             bg="#0078D4", fg="white", width=36, anchor="w", padx=4).pack(side="left")
+    tk.Label(header_frame, text="Nome novo", font=("Segoe UI", 9, "bold"),
+             bg="#0078D4", fg="white", width=36, anchor="w", padx=4).pack(side="left")
+
+    canvas = tk.Canvas(frame_tabela, height=180, highlightthickness=0)
+    vsb = tk.Scrollbar(frame_tabela, orient="vertical", command=canvas.yview)
+    canvas.configure(yscrollcommand=vsb.set)
+    vsb.pack(side="right", fill="y")
+    canvas.pack(side="left", fill="both", expand=True)
+
+    inner = tk.Frame(canvas)
+    canvas_window = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+    def on_configure(e):
+        canvas.configure(scrollregion=canvas.bbox("all"))
+    inner.bind("<Configure>", on_configure)
+
+    def on_canvas_resize(e):
+        canvas.itemconfig(canvas_window, width=e.width)
+    canvas.bind("<Configure>", on_canvas_resize)
+
+    def preencher_tabela(nomes_com_caminho):
+        for widget in inner.winfo_children():
+            widget.destroy()
+        linhas.clear()
+        for i, (nome, _caminho) in enumerate(nomes_com_caminho):
+            bg = "#ffffff" if i % 2 == 0 else "#f4f4f4"
+            row_f = tk.Frame(inner, bg=bg)
+            row_f.pack(fill="x")
+            ext = os.path.splitext(nome)[1]
+            var_orig = tk.StringVar(value=nome)
+            var_novo = tk.StringVar(value="")   # começa VAZIO
+            tk.Label(row_f, textvariable=var_orig, font=("Segoe UI", 9),
+                     bg=bg, width=34, anchor="w", padx=4).pack(side="left")
+            tk.Entry(row_f, textvariable=var_novo, font=("Segoe UI", 9), width=34).pack(
+                side="left", padx=(2, 0))
+            linhas.append((var_orig, var_novo, ext, _caminho))
+        log(f"📂 {len(linhas)} arquivo(s) carregado(s).")
+
+    def carregar_de_pasta(pasta):
+        nomes = sorted(os.listdir(pasta))
+        pares = [(n, os.path.join(pasta, n)) for n in nomes]
+        preencher_tabela(pares)
+
+    def carregar_lista(caminhos):
+        pares = [(os.path.basename(c), c) for c in sorted(caminhos)]
+        preencher_tabela(pares)
+
+    # ── Botões de ação na tabela ──
+    frame_btns = tk.Frame(frame)
+    frame_btns.grid(row=4, column=0, columnspan=3, sticky="w", pady=(0, 4))
+
+    def copiar_nomes_atuais():
+        nomes = "\n".join(v[0].get() for v in linhas)
+        if not nomes:
+            messagebox.showwarning("Atenção", "Nenhum arquivo carregado."); return
+        frame.clipboard_clear()
+        frame.clipboard_append(nomes)
+        log(f"📋 {len(linhas)} nome(s) copiado(s) para a área de transferência.")
+
+    def colar_nomes_novos():
+        try:
+            texto = frame.clipboard_get()
+        except tk.TclError:
+            messagebox.showwarning("Atenção", "Área de transferência vazia."); return
+        nomes = [l.strip() for l in texto.splitlines() if l.strip()]
+        if not nomes:
+            messagebox.showwarning("Atenção", "Nenhum valor encontrado."); return
+        for i, nome in enumerate(nomes):
+            if i >= len(linhas): break
+            linhas[i][1].set(nome)
+        log(f"📋 {min(len(nomes), len(linhas))} nome(s) colado(s).")
+
+    def limpar_nomes_novos():
+        for _, var_novo, _, _ in linhas:
+            var_novo.set("")
+
+    tk.Button(frame_btns, text="📋 Copiar nomes atuais", font=("Segoe UI", 9),
+              command=copiar_nomes_atuais).pack(side="left", padx=(0, 6))
+    tk.Button(frame_btns, text="📥 Colar nomes novos", font=("Segoe UI", 9),
+              command=colar_nomes_novos).pack(side="left", padx=(0, 6))
+    tk.Button(frame_btns, text="🗑 Limpar col. Nova", font=("Segoe UI", 9), fg="red",
+              command=limpar_nomes_novos).pack(side="left")
+
+    log_w = make_log_widget(frame, 5, height=4)
+    log = lambda m: log_write(log_w, m)
+
+    def limpar_tudo():
+        pasta_var.set("")
+        for widget in inner.winfo_children():
+            widget.destroy()
+        linhas.clear()
+        log_clear(log_w)
+
+    def executar_rename(btn):
+        if not linhas:
+            messagebox.showwarning("Atenção", "Carregue os arquivos primeiro.")
+            btn.config(state="normal"); return
+        erros = 0; ok = 0
+        log_clear(log_w)
+        for var_orig, var_novo, ext, caminho_orig in linhas:
+            orig_nome = var_orig.get().strip()
+            novo = var_novo.get().strip()
+            if not novo:
+                continue  # nome novo vazio = não renomeia
+            nome_novo_completo = novo if novo.lower().endswith(ext.lower()) else novo + ext
+            pasta = os.path.dirname(caminho_orig)
+            src = caminho_orig
+            dst = os.path.join(pasta, nome_novo_completo)
+            if orig_nome == nome_novo_completo:
+                continue
+            try:
+                if not os.path.exists(src):
+                    log(f"⚠️  Não encontrado: {orig_nome}"); continue
+                if os.path.exists(dst):
+                    log(f"⚠️  Já existe: {nome_novo_completo}, ignorado."); continue
+                os.rename(src, dst)
+                log(f"✔  {orig_nome}  →  {nome_novo_completo}")
+                var_orig.set(nome_novo_completo)
+                # Atualiza caminho interno
+                idx = linhas.index((var_orig, var_novo, ext, caminho_orig))
+                linhas[idx] = (var_orig, var_novo, ext, dst)
+                ok += 1
+            except Exception as e:
+                log(f"❌ Erro em {orig_nome}: {e}"); erros += 1
+        log(f"\n✅ Concluído! {ok} renomeado(s), {erros} erro(s).")
+        if ok > 0:
+            messagebox.showinfo("Sucesso", f"{ok} arquivo(s) renomeado(s) com sucesso!")
+        btn.config(state="normal")
+
+    def iniciar(btn):
+        btn.config(state="disabled")
+        executar_rename(btn)
+
+    btn_limpar(frame, 6, limpar_tudo)
+    b = btn_iniciar(frame, 7, "▶  Renomear Arquivos", lambda: iniciar(b))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ABA 6 — Girar Páginas
 # ══════════════════════════════════════════════════════════════════════════════
 
 def build_aba_girar(nb):
@@ -642,6 +840,10 @@ def build_aba_girar(nb):
     prog = make_progress(frame, 9)
     log = lambda m: log_write(log_w, m)
 
+    def limpar_tudo():
+        entrada_var.set(""); saida_var.set(""); paginas_var.set(""); angulo_var.set(90)
+        log_clear(log_w); prog["value"] = 0
+
     def processar(entrada, saida, spec, angulo, btn):
         try:
             reader = PdfReader(entrada)
@@ -664,25 +866,24 @@ def build_aba_girar(nb):
             log(f"📄 Salvo em: {saida}")
             messagebox.showinfo("Sucesso", f"PDF salvo:\n{saida}")
         except Exception as e:
-            log(f"❌ Erro: {e}")
-            messagebox.showerror("Erro", str(e))
+            log(f"❌ Erro: {e}"); messagebox.showerror("Erro", str(e))
         btn.config(state="normal")
 
     def iniciar(btn):
-        e = entrada_var.get().strip()
-        s = saida_var.get().strip()
-        p = paginas_var.get().strip()
-        a = angulo_var.get()
+        e = entrada_var.get().strip(); s = saida_var.get().strip()
         if not e: messagebox.showwarning("Atenção", "Selecione o PDF."); return
         if not s: messagebox.showwarning("Atenção", "Defina o arquivo de saída."); return
         log_clear(log_w); prog["value"] = 0; btn.config(state="disabled")
-        threading.Thread(target=processar, args=(e, s, p, a, btn), daemon=True).start()
+        threading.Thread(target=processar,
+                         args=(e, s, paginas_var.get().strip(), angulo_var.get(), btn),
+                         daemon=True).start()
 
-    b = btn_iniciar(frame, 10, "▶  Girar", lambda: iniciar(b))
+    btn_limpar(frame, 10, limpar_tudo)
+    b = btn_iniciar(frame, 11, "▶  Girar", lambda: iniciar(b))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ABA 6 — Proteger / Desproteger
+# ABA 7 — Proteger / Desproteger
 # ══════════════════════════════════════════════════════════════════════════════
 
 def build_aba_senha(nb):
@@ -713,7 +914,6 @@ def build_aba_senha(nb):
     tk.Radiobutton(fa, text="Remover senha", variable=acao_var, value=2,
                    font=("Segoe UI", 9), command=atualizar_acao).pack(side="left", padx=10)
 
-    # Proteger
     frame_prot = tk.Frame(frame)
     frame_prot.grid(row=5, column=0, columnspan=3, sticky="ew")
     tk.Label(frame_prot, text="Nova senha:", font=("Segoe UI", 9)).grid(row=0, column=0, sticky="w")
@@ -723,7 +923,6 @@ def build_aba_senha(nb):
     tk.Entry(frame_prot, textvariable=conf_var, show="*", width=30, font=("Segoe UI", 9)).grid(
         row=3, column=0, sticky="w", pady=(0, 4))
 
-    # Desproteger
     frame_desprot = tk.Frame(frame)
     frame_desprot.grid(row=5, column=0, columnspan=3, sticky="ew")
     frame_desprot.grid_remove()
@@ -734,6 +933,11 @@ def build_aba_senha(nb):
     log_w = make_log_widget(frame, 6, height=5)
     prog = make_progress(frame, 8)
     log = lambda m: log_write(log_w, m)
+
+    def limpar_tudo():
+        entrada_var.set(""); saida_var.set(""); senha_var.set("")
+        conf_var.set(""); senha_atual_var.set(""); acao_var.set(1); atualizar_acao()
+        log_clear(log_w); prog["value"] = 0
 
     def processar(entrada, saida, acao, senha, conf, senha_atual, btn):
         try:
@@ -753,23 +957,20 @@ def build_aba_senha(nb):
                     messagebox.showerror("Erro", "A senha deve ter ao menos 4 caracteres.")
                     btn.config(state="normal"); return
                 writer.encrypt(senha)
-                log("🔒 Senha adicionada com sucesso.")
+                log("🔒 Senha adicionada.")
             else:
-                log("🔓 Senha removida com sucesso.")
+                log("🔓 Senha removida.")
             with open(saida, "wb") as f:
                 writer.write(f)
             prog["value"] = 100
             log(f"📄 Salvo em: {saida}")
             messagebox.showinfo("Sucesso", f"PDF salvo:\n{saida}")
         except Exception as e:
-            log(f"❌ Erro: {e}")
-            messagebox.showerror("Erro", str(e))
+            log(f"❌ Erro: {e}"); messagebox.showerror("Erro", str(e))
         btn.config(state="normal")
 
     def iniciar(btn):
-        e = entrada_var.get().strip()
-        s = saida_var.get().strip()
-        a = acao_var.get()
+        e = entrada_var.get().strip(); s = saida_var.get().strip(); a = acao_var.get()
         if not e: messagebox.showwarning("Atenção", "Selecione o PDF."); return
         if not s: messagebox.showwarning("Atenção", "Defina o arquivo de saída."); return
         if a == 1 and not senha_var.get():
@@ -780,11 +981,12 @@ def build_aba_senha(nb):
                                senha_atual_var.get(), btn),
                          daemon=True).start()
 
-    b = btn_iniciar(frame, 9, "▶  Executar", lambda: iniciar(b))
+    btn_limpar(frame, 9, limpar_tudo)
+    b = btn_iniciar(frame, 10, "▶  Executar", lambda: iniciar(b))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ABA 7 — Informações do PDF
+# ABA 8 — Informações do PDF
 # ══════════════════════════════════════════════════════════════════════════════
 
 def build_aba_info(nb):
@@ -798,6 +1000,12 @@ def build_aba_info(nb):
                           state="disabled", bg="#f4f4f4")
     info_widget.grid(row=2, column=0, columnspan=3, pady=(10, 6))
 
+    def limpar_tudo():
+        entrada_var.set("")
+        info_widget.config(state="normal")
+        info_widget.delete("1.0", tk.END)
+        info_widget.config(state="disabled")
+
     def mostrar(entrada):
         info_widget.config(state="normal")
         info_widget.delete("1.0", tk.END)
@@ -807,22 +1015,21 @@ def build_aba_info(nb):
             tam = os.path.getsize(entrada)
             tam_str = f"{tam/1024:.1f} KB" if tam < 1024*1024 else f"{tam/1024/1024:.2f} MB"
             meta = reader.metadata or {}
-
             linhas = [
-                f"📄 Arquivo:      {os.path.basename(entrada)}",
-                f"📁 Caminho:      {entrada}",
-                f"📏 Tamanho:      {tam_str}",
-                f"📑 Páginas:      {tp}",
+                f"📄 Arquivo:       {os.path.basename(entrada)}",
+                f"📁 Caminho:       {entrada}",
+                f"📏 Tamanho:       {tam_str}",
+                f"📑 Páginas:       {tp}",
                 f"🔒 Criptografado: {'Sim' if reader.is_encrypted else 'Não'}",
                 "",
                 "── Metadados ──────────────────────────────",
-                f"Título:         {meta.get('/Title', '—')}",
-                f"Autor:          {meta.get('/Author', '—')}",
-                f"Assunto:        {meta.get('/Subject', '—')}",
-                f"Criador:        {meta.get('/Creator', '—')}",
-                f"Produtor:       {meta.get('/Producer', '—')}",
-                f"Criado em:      {meta.get('/CreationDate', '—')}",
-                f"Modificado em:  {meta.get('/ModDate', '—')}",
+                f"Título:          {meta.get('/Title', '—')}",
+                f"Autor:           {meta.get('/Author', '—')}",
+                f"Assunto:         {meta.get('/Subject', '—')}",
+                f"Criador:         {meta.get('/Creator', '—')}",
+                f"Produtor:        {meta.get('/Producer', '—')}",
+                f"Criado em:       {meta.get('/CreationDate', '—')}",
+                f"Modificado em:   {meta.get('/ModDate', '—')}",
                 "",
                 "── Tamanho das páginas ────────────────────",
             ]
@@ -831,7 +1038,6 @@ def build_aba_info(nb):
                 h = float(page.mediabox.height)
                 linhas.append(f"  Pág. {i+1:>3}: {w:.0f} x {h:.0f} pts  "
                               f"({w/72*2.54:.1f} x {h/72*2.54:.1f} cm)")
-
             info_widget.insert(tk.END, "\n".join(linhas))
         except Exception as e:
             info_widget.insert(tk.END, f"❌ Erro ao ler o arquivo:\n{e}")
@@ -839,158 +1045,12 @@ def build_aba_info(nb):
 
     def analisar():
         e = entrada_var.get().strip()
-        if not e:
-            messagebox.showwarning("Atenção", "Selecione um PDF."); return
+        if not e: messagebox.showwarning("Atenção", "Selecione um PDF."); return
         mostrar(e)
 
-    btn_iniciar(frame, 3, "🔍  Analisar PDF", analisar)
+    btn_limpar(frame, 3, limpar_tudo)
+    btn_iniciar(frame, 4, "🔍  Analisar PDF", analisar)
 
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ABA 8 — Renomear Arquivos
-# ══════════════════════════════════════════════════════════════════════════════
-
-def build_aba_renomear(nb):
-    frame = ttk.Frame(nb, padding=12)
-    nb.add(frame, text="  Renomear  ")
-
-    pasta_var = tk.StringVar()
-    linhas = []  # lista de (StringVar_nome_original, StringVar_nome_novo)
-
-    # ── Seleção de pasta ──
-    tk.Label(frame, text="Pasta com os arquivos:", font=("Segoe UI", 9)).grid(
-        row=0, column=0, columnspan=3, sticky="w")
-    tk.Entry(frame, textvariable=pasta_var, width=52, font=("Segoe UI", 9),
-             state="readonly").grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 4))
-    tk.Button(frame, text="Selecionar", font=("Segoe UI", 9),
-              command=lambda: [pasta_var.set(filedialog.askdirectory(title="Selecione a pasta")),
-                               carregar() if pasta_var.get() else None]
-              ).grid(row=1, column=2, padx=(6,0), pady=(0,4))
-
-    # ── Tabela ──
-    tk.Label(frame, text="Nome atual → Nome novo  (cole do Excel na coluna 'Nome novo'):",
-             font=("Segoe UI", 9)).grid(row=2, column=0, columnspan=3, sticky="w")
-
-    frame_tabela = tk.Frame(frame, relief="sunken", bd=1)
-    frame_tabela.grid(row=3, column=0, columnspan=3, sticky="nsew", pady=(0, 4))
-
-    # cabeçalho fixo
-    header_frame = tk.Frame(frame_tabela, bg="#0078D4")
-    header_frame.pack(fill="x")
-    tk.Label(header_frame, text="Nome atual", font=("Segoe UI", 9, "bold"),
-             bg="#0078D4", fg="white", width=38, anchor="w", padx=4).pack(side="left")
-    tk.Label(header_frame, text="Nome novo", font=("Segoe UI", 9, "bold"),
-             bg="#0078D4", fg="white", width=38, anchor="w", padx=4).pack(side="left")
-
-    # área rolável
-    canvas = tk.Canvas(frame_tabela, height=200, highlightthickness=0)
-    vsb = tk.Scrollbar(frame_tabela, orient="vertical", command=canvas.yview)
-    canvas.configure(yscrollcommand=vsb.set)
-    vsb.pack(side="right", fill="y")
-    canvas.pack(side="left", fill="both", expand=True)
-
-    inner = tk.Frame(canvas)
-    canvas_window = canvas.create_window((0, 0), window=inner, anchor="nw")
-
-    def on_configure(e):
-        canvas.configure(scrollregion=canvas.bbox("all"))
-    inner.bind("<Configure>", on_configure)
-
-    def on_canvas_resize(e):
-        canvas.itemconfig(canvas_window, width=e.width)
-    canvas.bind("<Configure>", on_canvas_resize)
-
-    def carregar():
-        pasta = pasta_var.get().strip()
-        if not pasta or not os.path.isdir(pasta):
-            return
-        # Limpa tabela
-        for widget in inner.winfo_children():
-            widget.destroy()
-        linhas.clear()
-        arquivos = sorted(os.listdir(pasta))
-        for i, nome in enumerate(arquivos):
-            bg = "#ffffff" if i % 2 == 0 else "#f4f4f4"
-            row_f = tk.Frame(inner, bg=bg)
-            row_f.pack(fill="x")
-            var_orig = tk.StringVar(value=nome)
-            var_novo = tk.StringVar(value=os.path.splitext(nome)[0])
-            ext = os.path.splitext(nome)[1]
-            tk.Label(row_f, textvariable=var_orig, font=("Segoe UI", 9),
-                     bg=bg, width=36, anchor="w", padx=4).pack(side="left")
-            entry = tk.Entry(row_f, textvariable=var_novo, font=("Segoe UI", 9), width=36)
-            entry.pack(side="left", padx=(2, 0))
-            linhas.append((var_orig, var_novo, ext))
-        log(f"📂 {len(linhas)} arquivo(s) carregado(s). Edite os nomes e clique em Renomear.")
-
-    # Botão colar do Excel
-    def colar_excel():
-        """Pega texto da área de transferência (uma coluna colada do Excel) e preenche os nomes novos."""
-        try:
-            texto = frame.clipboard_get()
-        except tk.TclError:
-            messagebox.showwarning("Atenção", "Área de transferência vazia."); return
-        nomes = [l.strip() for l in texto.splitlines() if l.strip()]
-        if not nomes:
-            messagebox.showwarning("Atenção", "Nenhum valor encontrado na área de transferência."); return
-        for i, nome in enumerate(nomes):
-            if i >= len(linhas):
-                break
-            linhas[i][1].set(nome)
-        log(f"📋 {min(len(nomes), len(linhas))} nome(s) colados do Excel.")
-
-    frame_btns = tk.Frame(frame)
-    frame_btns.grid(row=4, column=0, columnspan=3, sticky="w", pady=(0, 4))
-    tk.Button(frame_btns, text="🔄  Recarregar pasta", font=("Segoe UI", 9),
-              command=carregar).pack(side="left", padx=(0, 8))
-    tk.Button(frame_btns, text="📋  Colar do Excel", font=("Segoe UI", 9),
-              command=colar_excel).pack(side="left")
-
-    log_w = make_log_widget(frame, 5, height=4)
-    log = lambda m: log_write(log_w, m)
-
-    def executar_rename(btn):
-        pasta = pasta_var.get().strip()
-        if not pasta:
-            messagebox.showwarning("Atenção", "Selecione uma pasta."); return
-        if not linhas:
-            messagebox.showwarning("Atenção", "Carregue os arquivos primeiro."); return
-        erros = 0
-        ok = 0
-        log_clear(log_w)
-        for var_orig, var_novo, ext in linhas:
-            orig = var_orig.get().strip()
-            novo = var_novo.get().strip()
-            if not novo:
-                log(f"⚠️  Nome novo vazio, ignorado: {orig}"); continue
-            nome_novo_completo = novo if novo.lower().endswith(ext.lower()) else novo + ext
-            src = os.path.join(pasta, orig)
-            dst = os.path.join(pasta, nome_novo_completo)
-            if orig == nome_novo_completo:
-                continue
-            try:
-                if not os.path.exists(src):
-                    log(f"⚠️  Não encontrado: {orig}"); continue
-                if os.path.exists(dst):
-                    log(f"⚠️  Já existe: {nome_novo_completo}, ignorado."); continue
-                os.rename(src, dst)
-                log(f"✔  {orig}  →  {nome_novo_completo}")
-                var_orig.set(nome_novo_completo)
-                ok += 1
-            except Exception as e:
-                log(f"❌ Erro em {orig}: {e}")
-                erros += 1
-        log(f"\n✅ Concluído! {ok} renomeado(s), {erros} erro(s).")
-        if ok > 0:
-            messagebox.showinfo("Sucesso", f"{ok} arquivo(s) renomeado(s) com sucesso!")
-        btn.config(state="normal")
-
-    def iniciar(btn):
-        btn.config(state="disabled")
-        executar_rename(btn)
-
-    b = btn_iniciar(frame, 6, "▶  Renomear Arquivos", lambda: iniciar(b))
 
 # ══════════════════════════════════════════════════════════════════════════════
 # JANELA PRINCIPAL
@@ -1001,13 +1061,11 @@ root.title("Gerenciador de PDFs")
 root.resizable(False, False)
 root.configure(padx=4, pady=4)
 
-# Cabeçalho
 header = tk.Frame(root, bg="#0078D4", padx=14, pady=10)
 header.pack(fill="x")
 tk.Label(header, text="📄  Gerenciador de PDFs", font=("Segoe UI", 15, "bold"),
          bg="#0078D4", fg="white").pack(side="left")
 
-# Notebook
 style = ttk.Style()
 style.theme_use("default")
 style.configure("TNotebook.Tab", font=("Segoe UI", 9), padding=[10, 4])
@@ -1019,9 +1077,9 @@ build_aba_extrair(nb)
 build_aba_excluir(nb)
 build_aba_dividir(nb)
 build_aba_reorganizar(nb)
+build_aba_renomear(nb)
 build_aba_girar(nb)
 build_aba_senha(nb)
 build_aba_info(nb)
-build_aba_renomear(nb)
 
 root.mainloop()
