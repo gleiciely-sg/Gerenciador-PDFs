@@ -748,6 +748,15 @@ def build_aba_renomear(nb):
         for _, var_novo, _, _ in linhas:
             var_novo.set("")
 
+    def recarregar():
+        p = pasta_var.get().strip()
+        if not p or not os.path.isdir(p):
+            messagebox.showwarning("Atenção", "Recarregar só funciona quando uma pasta foi selecionada.")
+            return
+        carregar_de_pasta(p)
+
+    tk.Button(frame_btns, text="🔄 Recarregar", font=("Segoe UI", 9),
+              command=recarregar).pack(side="left", padx=(0, 6))
     tk.Button(frame_btns, text="📋 Copiar nomes atuais", font=("Segoe UI", 9),
               command=copiar_nomes_atuais).pack(side="left", padx=(0, 6))
     tk.Button(frame_btns, text="📥 Colar nomes novos", font=("Segoe UI", 9),
@@ -755,21 +764,12 @@ def build_aba_renomear(nb):
     tk.Button(frame_btns, text="🗑 Limpar col. Nova", font=("Segoe UI", 9), fg="red",
               command=limpar_nomes_novos).pack(side="left")
 
-    log_w = make_log_widget(frame, 5, height=4)
-    log = lambda m: log_write(log_w, m)
-
-    def limpar_tudo():
-        pasta_var.set("")
-        for widget in inner.winfo_children():
-            widget.destroy()
-        linhas.clear()
-        log_clear(log_w)
-
     def executar_rename(btn):
         if not linhas:
             messagebox.showwarning("Atenção", "Carregue os arquivos primeiro.")
             btn.config(state="normal"); return
         erros = 0; ok = 0
+        prog["value"] = 0
         log_clear(log_w)
         for var_orig, var_novo, ext, caminho_orig in linhas:
             orig_nome = var_orig.get().strip()
@@ -796,6 +796,7 @@ def build_aba_renomear(nb):
                 ok += 1
             except Exception as e:
                 log(f"❌ Erro em {orig_nome}: {e}"); erros += 1
+        prog["value"] = 100
         log(f"\n✅ Concluído! {ok} renomeado(s), {erros} erro(s).")
         if ok > 0:
             messagebox.showinfo("Sucesso", f"{ok} arquivo(s) renomeado(s) com sucesso!")
@@ -805,8 +806,19 @@ def build_aba_renomear(nb):
         btn.config(state="disabled")
         executar_rename(btn)
 
-    btn_limpar(frame, 6, limpar_tudo)
-    b = btn_iniciar(frame, 7, "▶  Renomear Arquivos", lambda: iniciar(b))
+    log_w = make_log_widget(frame, 5, height=4)
+    log = lambda m: log_write(log_w, m)
+
+    def limpar_tudo():
+        pasta_var.set("")
+        for widget in inner.winfo_children():
+            widget.destroy()
+        linhas.clear()
+        log_clear(log_w)
+
+    prog = make_progress(frame, 7)
+    btn_limpar(frame, 8, limpar_tudo)
+    b = btn_iniciar(frame, 9, "▶  Renomear Arquivos", lambda: iniciar(b))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1048,8 +1060,9 @@ def build_aba_info(nb):
         if not e: messagebox.showwarning("Atenção", "Selecione um PDF."); return
         mostrar(e)
 
-    btn_limpar(frame, 3, limpar_tudo)
-    btn_iniciar(frame, 4, "🔍  Analisar PDF", analisar)
+    prog_info = make_progress(frame, 3)
+    btn_limpar(frame, 4, limpar_tudo)
+    btn_iniciar(frame, 5, "🔍  Analisar PDF", analisar)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
