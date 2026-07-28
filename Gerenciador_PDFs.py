@@ -17,13 +17,13 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-def _pdf_reader(path):
+def PdfReader(path):
     from pypdf import PdfReader
-    return _pdf_reader(path)
+    return PdfReader(path)
 
-def _pdf_writer():
+def PdfWriter():
     from pypdf import PdfWriter
-    return _pdf_writer()
+    return PdfWriter()
 
 
 # ── Utilitários ───────────────────────────────────────────────────────────────
@@ -261,12 +261,12 @@ def build_aba_extrair(nb):
         caminhos = sorted(caminhos, key=lambda p: ordenar_numerico(os.path.basename(p)))
         total = len(caminhos)
         log(f"📂 {total} arquivo(s) encontrado(s)\n")
-        writer_final = _pdf_writer()
+        writer_final = PdfWriter()
         ok = 0
         for i, caminho in enumerate(caminhos):
             nome = os.path.basename(caminho)
             try:
-                reader = _pdf_reader(caminho)
+                reader = PdfReader(caminho)
                 tp = len(reader.pages)
                 if tp == 0:
                     log(f"⚠️  Vazio: {nome}"); continue
@@ -275,7 +275,7 @@ def build_aba_extrair(nb):
                     log(f"⚠️  Páginas fora do intervalo em '{nome}' — usando todas")
                     indices = list(range(tp))
                 if modo in (1, 2):
-                    w = _pdf_writer()
+                    w = PdfWriter()
                     for idx in indices:
                         w.add_page(reader.pages[idx])
                     with open(os.path.join(pasta_saida, nome), "wb") as f:
@@ -366,7 +366,7 @@ def build_aba_excluir(nb):
 
     def processar(entrada, saida, spec, btn):
         try:
-            reader = _pdf_reader(entrada)
+            reader = PdfReader(entrada)
             tp = len(reader.pages)
             excluir = parse_paginas(spec, tp)
             if excluir is None:
@@ -376,7 +376,7 @@ def build_aba_excluir(nb):
             if not manter:
                 messagebox.showerror("Erro", "Todas as páginas seriam excluídas.")
                 btn.config(state="normal"); return
-            writer = _pdf_writer()
+            writer = PdfWriter()
             for i, idx in enumerate(manter):
                 writer.add_page(reader.pages[idx])
                 prog["value"] = int((i+1)/len(manter)*95)
@@ -437,13 +437,13 @@ def build_aba_dividir(nb):
 
     def processar(entrada, saida, modo, intervalos, btn):
         try:
-            reader = _pdf_reader(entrada)
+            reader = PdfReader(entrada)
             tp = len(reader.pages)
             os.makedirs(saida, exist_ok=True)
             base = os.path.splitext(os.path.basename(entrada))[0]
             if modo == 1:
                 for i in range(tp):
-                    w = _pdf_writer()
+                    w = PdfWriter()
                     w.add_page(reader.pages[i])
                     out = os.path.join(saida, f"{base}_pag{i+1:03d}.pdf")
                     with open(out, "wb") as f:
@@ -460,7 +460,7 @@ def build_aba_dividir(nb):
                         btn.config(state="normal"); return
                     grupos.append(idx)
                 for g, grupo in enumerate(grupos):
-                    w = _pdf_writer()
+                    w = PdfWriter()
                     for idx in grupo:
                         w.add_page(reader.pages[idx])
                     out = os.path.join(saida, f"{base}_parte{g+1:03d}.pdf")
@@ -566,7 +566,7 @@ def build_aba_reorganizar(nb):
         if not e:
             messagebox.showwarning("Atenção", "Selecione o PDF primeiro."); return
         try:
-            reader = _pdf_reader(e)
+            reader = PdfReader(e)
             tp = len(reader.pages)
             listbox.delete(0, tk.END)
             for i in range(tp):
@@ -601,8 +601,8 @@ def build_aba_reorganizar(nb):
 
     def processar(entrada, saida, ordem, btn):
         try:
-            reader = _pdf_reader(entrada)
-            writer = _pdf_writer()
+            reader = PdfReader(entrada)
+            writer = PdfWriter()
             for i, idx in enumerate(ordem):
                 writer.add_page(reader.pages[idx])
                 prog["value"] = int((i+1)/len(ordem)*95)
@@ -865,13 +865,13 @@ def build_aba_girar(nb):
 
     def processar(entrada, saida, spec, angulo, btn):
         try:
-            reader = _pdf_reader(entrada)
+            reader = PdfReader(entrada)
             tp = len(reader.pages)
             indices = parse_paginas(spec, tp) if spec.strip() else list(range(tp))
             if indices is None:
                 messagebox.showerror("Erro", "Formato de páginas inválido.")
                 btn.config(state="normal"); return
-            writer = _pdf_writer()
+            writer = PdfWriter()
             for i in range(tp):
                 page = reader.pages[i]
                 if i in indices:
@@ -960,12 +960,12 @@ def build_aba_senha(nb):
 
     def processar(entrada, saida, acao, senha, conf, senha_atual, btn):
         try:
-            reader = _pdf_reader(entrada)
+            reader = PdfReader(entrada)
             if reader.is_encrypted:
                 if not reader.decrypt(senha_atual):
                     messagebox.showerror("Erro", "Senha incorreta.")
                     btn.config(state="normal"); return
-            writer = _pdf_writer()
+            writer = PdfWriter()
             for page in reader.pages:
                 writer.add_page(page)
             if acao == 1:
@@ -1029,7 +1029,7 @@ def build_aba_info(nb):
         info_widget.config(state="normal")
         info_widget.delete("1.0", tk.END)
         try:
-            reader = _pdf_reader(entrada)
+            reader = PdfReader(entrada)
             tp = len(reader.pages)
             tam = os.path.getsize(entrada)
             tam_str = f"{tam/1024:.1f} KB" if tam < 1024*1024 else f"{tam/1024/1024:.2f} MB"
